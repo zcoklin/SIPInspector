@@ -1,5 +1,5 @@
 <document>
 <SI_version>6.18</SI_version>
-<SI_URL>https://sites.google.com/site/sipinspectorsite/</SI_URL>
+<SI_URL>https://github.com/zcoklin/SIPInspector/raw/refs/heads/main/CurrentVersion/</SI_URL>
 <SI_MESSAGE></SI_MESSAGE>
 </document>
