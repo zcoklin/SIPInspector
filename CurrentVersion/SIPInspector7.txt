@@ -1,0 +1,5 @@
+<document>
+<SI_version>7.00</SI_version>
+<SI_URL>https://github.com/zcoklin/SIPInspector/raw/refs/heads/main/CurrentVersion/</SI_URL>
+<SI_MESSAGE></SI_MESSAGE>
+</document>
