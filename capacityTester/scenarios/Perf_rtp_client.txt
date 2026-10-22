@@ -1,0 +1,89 @@
+////////////////////////////////////////////////////////////////////////////////
+// Client: RTP test - a call with G.711 audio both ways
+//
+// Counterpart of Perf_rtp_server.
+//
+// Measures how many calls with audio both ways the two machines carry at a time.
+// Each side sends PCMU (50 packets a second) from pcap/test.pcap and measures what
+// it receives: loss, jitter and MOS. test/capacity.py sets the hold time.
+//
+// Over UDP the INVITE and the BYE are sent again until they are answered and a
+// 200 OK that comes again gets the ACK again (;retrans, RFC 3261 timers with -t1
+// and -t2), so a SIP message lost under load makes a late call, not a failed one;
+// the run report counts the copies (sip.retransmitted, sip.repeatsReceived).
+//
+// SIP Messages
+//  ---> INVITE ;retrans (G.711 PCMU, telephone-event)
+//  <--- 100 Trying (optional)
+//  <--- 180 Ringing
+//  <--- 200 OK ;retrans
+//  ---> ACK
+//  ---- RTP from pcap/test.pcap for the hold time (it repeats when it is shorter)
+//  ---> BYE ;retrans
+//  <--- 200 OK
+////////////////////////////////////////////////////////////////////////////////
+
+---------->;retrans
+INVITE sip:[toUsername]@[remote_ip]:[remote_port] SIP/2.0
+Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+From: <sip:[fromUsername]@[local_ip]:[local_port]>;tag=[call_number]
+To: <sip:[toUsername]@[remote_ip]:[remote_port]>
+Call-ID: [call_number].[run_tag]@[local_ip]
+CSeq: [cseq+1] INVITE
+Max-Forwards: 70
+Contact: <sip:[fromUsername]@[local_ip]:[local_port];transport=[transport]>
+User-Agent: SIPInspector_v_[ver]
+Content-Type: application/sdp
+Content-Length: [len]
+
+v=0
+o=111 843670094 843670094 IN [IP_ver] [local_ip_sdp]
+s=-
+c=IN [IP_ver] [local_ip_sdp]
+t=0 0
+a=sendrecv
+m=audio [media_port] RTP/AVP 0 101
+a=rtpmap:0 PCMU/8000
+a=rtpmap:101 telephone-event/8000
+a=fmtp:101 0-15
+a=ptime:20
+
+<----------*
+100 Trying
+
+<----------
+180 Ringing
+
+<----------;retrans
+200 OK
+
+---------->
+ACK sip:[toUsername]@[remote_ip]:[remote_port] SIP/2.0
+Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+From: <sip:[fromUsername]@[local_ip]:[local_port]>;tag=[call_number]
+To: <sip:[toUsername]@[remote_ip]:[remote_port]>;[peer_tag_param]
+Call-ID: [call_number].[run_tag]@[local_ip]
+CSeq: [cseq] ACK
+Max-Forwards: 70
+Contact: <sip:[fromUsername]@[local_ip]:[local_port];transport=[transport]>
+User-Agent: SIPInspector_v_[ver]
+Content-Length: 0
+
+----------
+cmd_PlayPcap=./pcap/test.pcap;duration=60000
+
+---------->;retrans
+BYE sip:[toUsername]@[remote_ip]:[remote_port] SIP/2.0
+Via: SIP/2.0/[transport] [local_ip]:[local_port];branch=[branch]
+From: <sip:[fromUsername]@[local_ip]:[local_port]>;tag=[call_number]
+To: <sip:[toUsername]@[remote_ip]:[remote_port]>;[peer_tag_param]
+Call-ID: [call_number].[run_tag]@[local_ip]
+CSeq: [cseq+1] BYE
+Max-Forwards: 70
+Contact: <sip:[fromUsername]@[local_ip]:[local_port];transport=[transport]>
+User-Agent: SIPInspector_v_[ver]
+Content-Length: 0
+
+
+<----------
+200 OK

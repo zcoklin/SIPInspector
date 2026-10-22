@@ -1,0 +1,92 @@
+////////////////////////////////////////////////////////////////////////////////
+// Server: RTP test - answers and sends G.711 audio until the BYE
+//
+// Counterpart of Perf_rtp_client.
+//
+// Answers every call at once, sends PCMU from pcap/test.pcap and measures the audio
+// of the client until the client ends the call.
+//
+// Over UDP the 200 OK is sent again until the ACK comes, and an INVITE or a BYE
+// that comes again is answered as before (;retrans, RFC 3261 timers with -t1 and
+// -t2), so a SIP message lost under load makes a late call, not a failed one.
+//
+// SIP Messages
+//  <--- INVITE ;retrans
+//  ---> 100 Trying
+//  ---> 180 Ringing
+//  ---> 200 OK ;retrans (G.711 PCMU, telephone-event)
+//  <--- ACK
+//  ---- RTP from pcap/test.pcap until the BYE
+//  <--- BYE ;retrans
+//  ---> 200 OK
+////////////////////////////////////////////////////////////////////////////////
+
+<----------;retrans
+INVITE
+
+---------->
+SIP/2.0 100 Trying
+[last_Via:]
+[last_From:]
+[last_To:]
+[last_Call-ID:]
+[last_CSeq:]
+User-Agent: SIPInspector_v_[ver]
+Content-Length: 0
+
+
+---------->
+SIP/2.0 180 Ringing
+[last_Via:]
+[last_From:]
+[last_To:];tag=[call_number]
+[last_Call-ID:]
+[last_CSeq:]
+Contact: <sip:[local_ip]:[local_port];transport=[transport]>
+User-Agent: SIPInspector_v_[ver]
+Content-Length: 0
+
+
+---------->;retrans
+SIP/2.0 200 OK
+[last_Via:]
+[last_From:]
+[last_To:];tag=[call_number]
+[last_Call-ID:]
+[last_CSeq:]
+Contact: <sip:[local_ip]:[local_port];transport=[transport]>
+User-Agent: SIPInspector_v_[ver]
+Content-Type: application/sdp
+Content-Length: [len]
+
+v=0
+o=111 843670094 843670094 IN [IP_ver] [local_ip_sdp]
+s=-
+c=IN [IP_ver] [local_ip_sdp]
+t=0 0
+a=sendrecv
+m=audio [media_port] RTP/AVP 0 101
+a=rtpmap:0 PCMU/8000
+a=rtpmap:101 telephone-event/8000
+a=fmtp:101 0-15
+a=ptime:20
+
+<----------
+ACK
+
+----------
+cmd_PlayPcap=./pcap/test.pcap
+
+<----------;retrans
+BYE
+
+---------->
+SIP/2.0 200 OK
+[last_Via:]
+[last_From:]
+[last_To:]
+[last_Call-ID:]
+[last_CSeq:]
+Contact: <sip:[local_ip]:[local_port];transport=[transport]>
+User-Agent: SIPInspector_v_[ver]
+Content-Length: 0

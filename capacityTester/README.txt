@@ -56,6 +56,42 @@ The tests (all in test/sipinspector/):
                             check of the entry when a scenario is loaded, and which thread
                             sends the digits of a call.
 
+  CallDBMediaTest           The call an incoming RTP packet belongs to, found by its source
+                            address: each call its own RTP, an ended call and a reused port,
+                            media moved by a re-INVITE, and 250,000 lookups among 5000 calls
+                            in well under a second (it was a search of all calls per packet).
+
+  SipThreadsTest            SIP handled by several threads (-sipThreads): the messages of a
+                            call go to one thread in the order they came, also under a further
+                            Call-ID of the call; the calls are spread over the threads; one
+                            thread without the Call-ID check.
+
+  MediaPortErrorTest        A media port that another program holds: reported once a run
+                            (rtp.portErrors and its ports in the run report, a reason of the
+                            result), not tried again for every packet, tried again when the port
+                            is free for a new call, and the channels that failed are closed.
+
+  MediaReadersTest          The RTP of the calls read by several threads apart from SIP
+                            (-rtpThreads): each media port goes to one reader, every packet is
+                            read, the load of each reader; the rows of /proc/net/udp, and the
+                            packets SIP Inspector loses on its own sockets counted
+                            (local.sipDrops) with a result that says the tester was overloaded.
+
+  RetransmissionTest        ;retrans on a message: read and written on both arrows, the
+                            ;ReTxCnt=N of the earlier format read as ;retrans (dropped where
+                            RFC 3261 never sends the message again), the timers A, E and G
+                            with T1 and T2 (when a copy is due, what stops it, when it gives
+                            up), copies of received messages answered as before, and the
+                            validator on a ;retrans that has no effect.
+
+  NoFreePortTest            More calls than media ports from -lrtp: the call that finds none
+                            fails with that reason instead of offering port -1 in its SDP,
+                            rtp.noFreePort counts it and the run fails with it.
+
+  PauseTimingTest           A pause lasts as long as the scenario says also when a pass of the
+                            pause thread over the calls is long (many calls up): it counts the
+                            time that passed, not only its sleep.
+
   ReplaceKeyWordsTest       The current SIPCall.replaceKeyWords gives exactly the same result
                             as the original implementation, on hand-written cases and about
                             600,000 random messages (both IPv4 and IPv6 settings).
@@ -345,7 +381,7 @@ Things to know:
   - Linux. Each extra client needs its own loopback address (127.0.0.2, 127.0.0.3, ...);
     Linux has the whole 127.0.0.0/8 range, macOS does not by default. One client works
     everywhere that has a shell.
-  - The program needs a licence. The script runs it with isolated preferences, so it takes
+  - The program needs a license. The script runs it with isolated preferences, so it takes
     your .licence file from the repository root (or the current directory, or your home
     directory) and copies it into each working directory. If the program reports that it is
     not registered, put your .licence file in the repository root, or use --shared-prefs.
@@ -369,27 +405,128 @@ Measures, between two computers that both run SIP Inspector:
     step fails its limits. Each call is two RTP streams, one each way.
 
 Both computers run SIP Inspector as an API service; the script drives them over HTTP, so a
-computer needs no source code, only the program, its licence and pcap/test.pcap. The
+computer needs no source code, only the program, its license and pcap/test.pcap. The
 script sends the scenarios itself (POST /scenarios). It runs on either computer or a third
 one and needs only Python 3.6+.
 
-1. On each computer, in the program folder:
+Without the source: the folder capacityTester of https://github.com/zcoklin/SIPInspector
+has capacity.py, this README and the Perf scenarios. Keep the scenarios folder next to
+capacity.py, or start the script in the program folder of SIP Inspector, whose
+scenarios folder has them too. The commands below call it test/capacity.py: give the path
+where you keep it.
 
-       SIPInspDlxCLI -api 8080 -apiHost 0.0.0.0 -apiToken <token> -lip <its address> \
-                     -lp 5060 -lrtp 10000 -np
-       (or java -Xmx2g -jar SIPInspDlx.jar with the same options)
+1. On each computer, in the program folder, start the service. It keeps running until you
+   press Ctrl+C.
+
+   Linux and macOS (the program folder of the Linux/other OS package):
+
+       ./SIPInspDlx -api 8080 -apiHost 0.0.0.0 -apiToken <token> -lip <its address> \
+                    -lp 5060 -lrtp 10000 -np -d ERROR
+
+   Windows (Command Prompt, in the program folder; all on one line):
+
+       SIPInspDlxCLI.exe -api 8080 -apiHost 0.0.0.0 -apiToken <token> -lip <its address> -lp 5060 -lrtp 10000 -np -d ERROR
 
    -apiHost 0.0.0.0 opens the API to the network: use a long token, and a firewall that
-   lets the other computer reach port 8080 (API), 5060 (SIP) and 10000 and up (RTP).
+   lets the other computer reach port 8080 (API), 5060 (SIP) and 10000 and up (RTP). On
+   Windows allow Java (or SIPInspDlxCLI.exe) through Windows Defender Firewall when it asks,
+   for private networks.
 
-2. Then:
+   -d ERROR keeps the log out of the measurement. Without -d a service takes the debugging
+   level the GUI saved last (every copy of the program folder shares it), and at VERBOSE it
+   writes about 27 lines of SIPInspector.log for every call, so the limits come out lower.
+   GET /system gives the level a service runs at (logLevel), capacity.py warns when it is
+   above ERROR, and the first line of SIPInspector.log says it too (log level=...).
 
-       test/capacity.py --a http://<A>:8080 --b http://<B>:8080 --token <token> \
-                        --a-name Laptop --b-name Workstation --repeat 3
+2. Then, on any computer that reaches both services:
+
+   Linux and macOS:
+
+       python3 test/capacity.py --a http://<A>:8080 --b http://<B>:8080 --token <token> \
+                                --a-name Laptop --b-name Workstation --repeat 3
+
+   Windows (Command Prompt, all on one line; py is the Python launcher, python works too):
+
+       py test\capacity.py --a http://<A>:8080 --b http://<B>:8080 --token <token> --a-name Laptop --b-name Workstation --repeat 3
+
+   In PowerShell the line is the same; to split a long line end it with ` (backtick) in
+   PowerShell or ^ in the Command Prompt, where Linux uses \.
 
    A calls B and B calls A (--roles), first the call rate test, then the RTP test (--test).
    GET /system of each service gives the computer (CPU, cores, memory, OS, Java) and its CPU
    load, which is sampled every two seconds of every step.
+
+   On a single computer
+   - - - - - - - - - - -
+
+   A and B can be two services on the same computer, to try the script out or to see what
+   one computer does when it is both caller and answerer. They talk over the loopback, so no
+   firewall and no network are involved. Each service needs its own SIP address, its own API
+   port and its own copy of the program folder (each writes SIPInspector.log and
+   scenarios/uploads/ in the folder it runs in). A takes SIP 127.0.0.1:5060 and API 8080,
+   B takes SIP 127.0.0.2:5070 and API 8081; with an address each, both use -lrtp 10000 and
+   their RTP ports never meet:
+
+   Linux and macOS, two terminals:
+
+       cp -r SIPInspector SIPInspector_B                (once: the second program folder)
+
+       cd SIPInspector
+       ./SIPInspDlx -api 8080 -apiToken <token> -lip 127.0.0.1 -lp 5060 -lrtp 10000 -np -d ERROR
+
+       cd SIPInspector_B
+       ./SIPInspDlx -api 8081 -apiToken <token> -lip 127.0.0.2 -lp 5070 -lrtp 10000 -np -d ERROR
+
+   and a third one (both APIs are on 127.0.0.1, whatever -lip says):
+
+       python3 test/capacity.py --a http://127.0.0.1:8080 --b http://127.0.0.1:8081 \
+                                --token <token> --a-name A --b-name B --roles ab
+
+   Windows, two Command Prompt windows:
+
+       xcopy /e /i SIPInspector SIPInspector_B          (once: the second program folder)
+
+       cd SIPInspector
+       SIPInspDlxCLI.exe -api 8080 -apiToken <token> -lip 127.0.0.1 -lp 5060 -lrtp 10000 -np -d ERROR
+
+       cd SIPInspector_B
+       SIPInspDlxCLI.exe -api 8081 -apiToken <token> -lip 127.0.0.2 -lp 5070 -lrtp 10000 -np -d ERROR
+
+   and a third one:
+
+       py test\capacity.py --a http://127.0.0.1:8080 --b http://127.0.0.1:8081 --token <token> --a-name A --b-name B --roles ab
+
+   The script calls each side at the SIP address and port its service was started with
+   (-lip and -lp, from GET /system), so A calls 127.0.0.2:5070 and B calls 127.0.0.1:5060.
+   Without -apiHost the API listens on 127.0.0.1 only, which is all a single computer needs.
+   Linux and Windows answer on every 127.x.x.x address.
+
+   macOS: its loopback has only 127.0.0.1. Add 127.0.0.2 before B starts, and check it:
+
+       sudo ifconfig lo0 alias 127.0.0.2 up
+       ifconfig lo0                     (lists inet 127.0.0.2)
+
+   The address is gone after every restart of the Mac: add it again then. A service started
+   before the address was there could not open its SIP port on it, and the INVITEs of A
+   reach nothing: start B again. When B listens, lsof -nP -iUDP:5070 shows java on
+   127.0.0.2:5070.
+
+   Both on one address (-lip 127.0.0.1 for both, B on -lp 5070) works too, but then the RTP
+   ports must be far apart: a call takes two ports from -lrtp up, so A on -lrtp 10000 and B
+   on -lrtp 20000 stay apart up to about 5000 calls with audio a step. The script checks
+   that before every step and stops, with the -lrtp to use, when they would meet: then one
+   side gets the RTP of the other and the loss and MOS are wrong (the same -lrtp for both
+   makes every step wrong). Keep the RTP ports below 32768: from there up (49152 on
+   Windows and macOS) the system gives ports to other programs, and a media port another
+   program holds is counted by the service (rtp.portErrors in the report) and stops the
+   test too.
+
+   --roles ab is enough: on one computer B calling A measures the same thing again. Both
+   services share the CPU, so the limits are lower than between two computers, and the CPU
+   columns show the load of the one computer twice. For a quick try
+   make the steps fewer and shorter, for example:
+
+       --test cps --cps-steps 10,50,100 --cps-seconds 10 --no-warmup
 
 3. The results are in capacity_<date>/:
        summary.md     the computers, the limit reached in each test and role, and the
@@ -409,6 +546,18 @@ What the limits (the gate) mean:
 A step passes when the runs on both computers keep their limits (the caller checks the
 answers and the audio it gets, the answerer the audio it gets). Change them with
 --cps-gate, --cps-answer-gate, --rtp-gate and --rtp-answer-gate; the steps with
---cps-steps and --rtp-steps; --help lists the rest. For numbers to publish use --repeat 3
-and close other programs on both computers. The weaker computer limits every run: the CPU
-columns show which one ran out.
+--cps-steps and --rtp-steps; --help lists the rest.
+
+The default steps, up to 20000 calls a second and 20000 calls with audio at a time, and
+the rate the RTP calls start at are at the top of capacity.py (CPS_STEPS, RTP_STEPS,
+RTP_START_CPS, RTP_MEASURE_SECONDS, RTP_RAMP_MARGIN, RTP_MIN_ACTIVE): change them there.
+In an RTP step every call is held through the start of all the others and then for the
+measuring time, so the audio of the first calls goes on while the last ones are made; a
+step where fewer than 99 % of its calls were up together fails. Thousands of calls need
+many open files: on Linux raise them first, in the terminal that starts the service
+(ulimit -n 200000); each call is one RTP socket, and 20000 calls send and receive 1 million
+packets a second on each side. Each service may take up to a quarter of the memory of the
+computer, which was enough for every measurement in the manual.
+
+For numbers to publish use --repeat 3 and close other programs on both computers. The
+weaker computer limits every run: the CPU columns show which one ran out.
